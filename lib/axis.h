@@ -43,7 +43,7 @@ void axis_write_4b(unsigned int id, unsigned int data)
   *axis_ptr[id] = (volatile unsigned int) data;
 }
 
-void axis_read_4b(unsigned int id,  int* data)
+void axis_read_4b(unsigned int id,  unsigned int* data)
 {
   volatile unsigned int r = *axis_ptr[id];
   *data = r;

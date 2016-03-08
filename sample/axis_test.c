@@ -5,18 +5,19 @@
 int main(int argc, char** argv)
 {
   if(argc < 2){
-    printf("./a.out value");
+    printf("Usage: ./a.out value\n");
     return 0;
   }
+
+  axis_open();
   
   unsigned int value = atoi(argv[1]);
 
-  axis_open();
-
   axis_write_4b(2, value);
+  printf("write: %d\n", value);
 
   axis_read_4b(2, &value);
-  printf("%d\n", value);
+  printf("read: %d\n", value);
 
   axis_close();
 
