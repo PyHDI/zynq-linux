@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <assert.h>
 #include <sys/mman.h>
@@ -14,10 +15,10 @@
 int fd_axis [NUM_AXIS];
 volatile int* axis_ptr [NUM_AXIS];
 
-void uio_name(char* uio, unsigned int i)
+void uio_name(char* uio, int i)
 {
   char buf [128];
-  itoa(i, buf, 10);
+  sprintf(buf, "%d", i);
   strcat(uio, buf);
 }
 
