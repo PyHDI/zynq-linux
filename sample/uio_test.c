@@ -6,8 +6,6 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 
-#define GPIO_OFFSET (0x43c10000)
-
 int main(int argc, char** argv)
 {
   if(argc < 2){
@@ -15,13 +13,13 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  int fd = open("/dev/mem", O_RDWR);
+  int fd = open("/dev/uio2", O_RDWR);
   if(fd < 0){
-    printf("cannot open /dev/mem\n");
+    printf("cannot open /dev/uio2\n");
     return -1;
   }
 
-  volatile int* gpio = (volatile int*) mmap(NULL, 0x1000, PROT_READ|PROT_WRITE, MAP_SHARED, fd, GPIO_OFFSET);
+  volatile int* gpio = (volatile int*) mmap(NULL, 0x1000, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 
   unsigned int value = atoi(argv[1]);
 
