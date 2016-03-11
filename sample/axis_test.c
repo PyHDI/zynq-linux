@@ -13,10 +13,10 @@ int main(int argc, char** argv)
   
   unsigned int value = atoi(argv[1]);
 
-  axis_write_4b(2, 0, value);
+  axis_write_4b(0, 0, value);
   printf("write: %d\n", value);
 
-  axis_read_4b(2, 8, &value);
+  axis_read_4b(0, 8, &value);
   printf("read: %d\n", value);
 
   axis_close();
