@@ -1,4 +1,0 @@
-/dts-v1/;
-
-/include/ "zynq-zc706-custom-cma.dtsi"
-

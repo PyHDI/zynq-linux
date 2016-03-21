@@ -1,4 +1,0 @@
-/dts-v1/;
-
-/include/ "zynq-zed-custom.dtsi"
-/include/ "zynq-zed-adv7511.dtsi"
