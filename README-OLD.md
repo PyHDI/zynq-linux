@@ -1,7 +1,7 @@
 zynq-linux
 ================================================================================
 
-Setup flow of Debian Linux on Zynq
+A package for constructing linux system on Xilinx Zynq
 
 Copyright (C) 2015, Shinya Takamaeda-Yamazaki
 
@@ -18,66 +18,98 @@ Apache License 2.0
 Contents
 ================================================================================
 
-- README.md: This file
-- config: configuration files for building software 
-- setting: setting files on Linux
+- config: linux kernel configuration and dts configuration files
+- setting: configuration file for linux system
 - lib: user-level library
-- sample: sample applications
-- compiled_file: compiled binary files
+- sample: sample code of lib
+- compiled_file: compiled kernal image (uImage), dtb (zynq-*.dtb), and CMA memory driver (udmabuf.ko)
 
 
-Tutorial Slide
+Requirements
 ================================================================================
 
-[Debian Linux on Zynq Setup Flow](http://www.slideshare.net/shtaxxx/debian-linux-on-zynq-setup-flow-vivado-20154)
+- Vivado (2014.4)
 
-
-Setup Flow
-================================================================================
-
-Under development.
-
-
-FPGA board file (for Zybo)
-----------------------------------------
-
-
-Hardware Development
-----------------------------------------
-
-
-U-boot SPL and U-boot (only once)
-----------------------------------------
-
-### Environment
-
-If you use bash (default) and zsh
+- U-boot (v2014.4)
 
 ```
-source /opt/xilinx/Vivado/2015.4/setting64.sh
+git clone git://git.xilinx.com/u-boot-xlnx.git && cd u-boot-xlnx
+git checkout -b xilinx-v2014.4 xilinx-v2014.4
+```
+
+- analogdevicesinc/linux (for 2014.4)
+
+```
+git clone https://github.com/analogdevicesinc/linux.git && cd linux 
+git checkout xcomm_zynq
+git checkout 3590cfe88b1a2d418d59e0ed9c928eb8c094c7cf
+make zynq_xcomm_adv7511_defconfig
+```
+
+- shtaxxx/udmabuf (User-level contigunous physical memory space (CMA) allocator)
+     - This is a customized version of @ikwzm's useful library. Thank you very much.
+
+```
+git clone https://github.com/shtaxxx/udmabuf.git
+```
+
+
+How to build a linux system on Zynq
+================================================================================
+
+Bitstream synthesis on Vivado
+----------------------------------------
+
+### Making an IP-core
+
+Create an AXI4 IP-core by HDL or high level synthesis tools.
+
+If you want to develop a high performance IP-core with Python, please use [PyCoRAM](https://github.com/PyHDI/PyCoRAM.git), and refer to [Zynq+PyCoRAM(+Debian) Introduction (In Japanese)](http://www.slideshare.net/shtaxxx/zynqpycoram).
+
+### Open a new project and synthesize it
+
+Create and use an example design. Go "Open Example Project" -> "Embedded Design". Then select "ZedBoard".
+
+After the bitstream synthesis, go "File" -> "Export Harware".
+
+Check "including bit stream" option and create a SDK project.
+
+Then go "File" -> "Launch SDK".
+
+
+Boot loader (U-boot)
+----------------------------------------
+
+### Setup cross compilation environment
+
+for bash / zsh
+
+```
+source /opt/xilinx/Vivado/2014.4/setting64.sh
 export CROSS_COMPILE=arm-xilinx-linux-gnueabi-
 export ARCH=arm
 ```
 
-If you use tcsh
+for tcsh
 
 ```
-source /opt/xilinx/Vivado/2015.4/setting64.csh
+source /opt/xilinx/Vivado/2014.4/setting64.csh
 setenv CROSS_COMPILE arm-xilinx-linux-gnueabi-
 setenv ARCH arm
 ```
 
-### U-boot 
+### Build U-boot 
 
-Download U-Boot
+Download U-Boot and checkout xilinx-v2014.4.
 
 ```
-git clone https://github.com/Xilinx/u-boot-xlnx.git
-cd u-boot-xlnx
-git checkout xilinx-v2015.4
+git clone git://git.xilinx.com/u-boot-xlnx.git; cd u-boot-xlnx 
+git checkout -b xilinx-v2014.4 xilinx-v2014.4
 ```
 
-Edit zynq_common.h
+Edit zynq_common.h ('+' lines will be added and '-' lines will be deleted.)
+
+Or, replace the file with "zynq-linux/config/zynq-common.h".
 
 ```
 emacs include/configs/zynq-common.h
@@ -85,20 +117,47 @@ emacs include/configs/zynq-common.h
 
 ```
 diff --git a/include/configs/zynq-common.h b/include/configs/zynq-common.h
+index db74f14..b3f821f 100644
+--- a/include/configs/zynq-common.h
++++ b/include/configs/zynq-common.h
+@@ -239,11 +239,11 @@
+ #define CONFIG_EXTRA_ENV_SETTINGS      \
+        "ethaddr=00:0a:35:00:01:22\0"   \
+        "kernel_image=uImage\0" \
+-       "kernel_load_address=0x2080000\0" \
++       "kernel_load_address=0x3000000\0" \
+        "ramdisk_image=uramdisk.image.gz\0"     \
+        "ramdisk_load_address=0x4000000\0"      \
+        "devicetree_image=devicetree.dtb\0"     \
+-       "devicetree_load_address=0x2000000\0"   \
++       "devicetree_load_address=0x2A00000\0"   \
+        "bitstream_image=system.bit.bin\0"      \
+        "boot_image=BOOT.bin\0" \
+        "loadbit_addr=0x100000\0"       \
+@@ -289,8 +289,7 @@
+                        "echo Copying Linux from SD to RAM... && " \
+                        "fatload mmc 0 ${kernel_load_address} ${kernel_image} && " \
+                        "fatload mmc 0 ${devicetree_load_address} ${devicetree_image} && " \
+-                       "fatload mmc 0 ${ramdisk_load_address} ${ramdisk_image} && " \
+-                       "bootm ${kernel_load_address} ${ramdisk_load_address} ${devicetree_load_address}; " \
++                       "bootm ${kernel_load_address} - ${devicetree_load_address}; " \
+                "fi\0" \
+        "usbboot=if usb start; then " \
+                        "run uenvboot; " \
 ```
 
-Build U-boot image.
-
-for Zybo
-
-```
-make zynq_zybo_config
-```
+Build a U-boot image (u-boot). 
 
 for ZedBoard
 
 ```
 make zynq_zed_config
+```
+
+for ZC706
+
+```
+make zynq_zc70x_config
 ```
 
 Then "make"
@@ -107,10 +166,30 @@ Then "make"
 make
 ```
 
-You have "u-boot-xlnx/u-boot.img" and "u-boot-xlnx/boot.bin".
+You have a "u-boot-xlnx/u-boot". Copy it as "u-boot.elf"
+
+```
+cp u-boot-xlnx/u-boot ~/work/u-boot.elf
+```
 
 
-Linux kernel (only once) and device tree
+FSBL and boot image (BOOT.BIN)
+----------------------------------------
+
+On SDK, select "File" -> "New" -> "Application Project". The project name is "fsbl", and select "Zynq FSBL" as the template.
+
+On the "fsbl" project, click "create Boot Image".
+
+Add the "u-boot.elf" that was generated above, and click "Create Image".
+
+You have "zynq.sdk/fsbl/bootimage/BOOT.bin". Then rename it as "BOOT.BIN" on a directory somewhere (work).
+
+```
+cp zed.sdk/fsbl/bootimage/BOOT.bin ~/work/BOOT.BIN
+```
+
+
+Linux kernel (uImage)
 ----------------------------------------
 
 ### Downlaod kernel image from Analog device's repository
@@ -288,8 +367,10 @@ fdt_high=0x20000000
 initrd_high=0x20000000
 ```
 
-Debian root file system
+Debian root file system 
 ----------------------------------------
+
+Debian 7.0 (wheezy) and Debian 8.0 (jessie) are tested.
 
 ### Initialization
 
@@ -430,7 +511,7 @@ exit
 sudo rm -f $targetdir/usr/bin/qemu-arm-static
 ```
 
-Setup SD card
+SD card as main storage
 ----------------------------------------
 
 Setup a disk partition by using gparted or fdisk as below.
@@ -454,7 +535,7 @@ Copy all the contentes in "rootfs" directory you created above into "rootfs" on 
 sudo cp -a ~/work/rootfs/* /media/yourname/rootfs/
 ```
 
-Boot from SD card
+Boot
 ----------------------------------------
 
 ### Hardware settting and login
@@ -536,7 +617,8 @@ Reboot
 (on Zynq) sudo reboot
 ```
 
-CMA (Continuous memory allocator) driver (Only once)
+
+CMA device driver (udmabuf.ko)
 ----------------------------------------
 
 ### Setup kernel image
@@ -585,10 +667,8 @@ Copy it into "/drivers/".
 (on Zynq) sudo cp udmabuf.ko /drivers
 ```
 
-
-Run test applications
+User-level driver library (cma.h)
 ----------------------------------------
-
 
 Go to "zynq-linux/sample/. Then compile a sample program that uses user-level library (zynq-linux/lib/cma.h).
 
@@ -611,23 +691,45 @@ The second argument of a.out is the run mode:
 
 You can find other user-level libraries ("axis.h" and "umem.h").
 
-How to replace the bitstream
-----------------------------------------
-
 
 Reference
 ================================================================================
 
-[Yet Another Guide to Running Linaro Ubuntu Linux Desktop on Xilinx Zynq on the ZedBoard](https://fpgacpu.wordpress.com/2013/05/24/yet-another-guide-to-running-linaro-ubuntu-desktop-on-xilinx-zynq-on-the-zedboard/)
+Analog Device Reference Project
+----------------------------------------
 
-[Building a pure Debian armhf rootfs](https://blog.night-shade.org.uk/2013/12/building-a-pure-debian-armhf-rootfs/)
+If you need HDMI, download the FPGA reference design from GitHub.
+Refer to this web page. [ADI Reference Designs HDL User Guide](http://wiki.analog.com/resources/fpga/docs/hdl)
 
-[ADI Reference Designs HDL User Guide](http://wiki.analog.com/resources/fpga/docs/hdl)
-If you need HDMI, download the FPGA reference design from GitHub: git clone https://github.com/analogdevicesinc/hdl.git
+```
+git clone https://github.com/analogdevicesinc/hdl.git
+```
+
+Yet Another Guide to Running Linaro Ubuntu Linux Desktop on Xilinx Zynq on the ZedBoard
+----------------------------------------
+
+https://fpgacpu.wordpress.com/2013/05/24/yet-another-guide-to-running-linaro-ubuntu-desktop-on-xilinx-zynq-on-the-zedboard/
 
 
-[ADI Reference Designs HDL User Guide](http://wiki.analog.com/resources/fpga/docs/hdl)
+Building a pure Debian armhf rootfs
+----------------------------------------
 
-[udmabuf (User space mappable DMA Buffer) (In Japanese)](http://qiita.com/ikwzm/items/cc1bb33ff43a491440ea)
+https://blog.night-shade.org.uk/2013/12/building-a-pure-debian-armhf-rootfs/
 
-[Zynq+PyCoRAM(+Debian) Introduction (In Japanese)](http://www.slideshare.net/shtaxxx/zynqpycoram)
+
+ADI Reference Designs HDL User Guide
+----------------------------------------
+
+http://wiki.analog.com/resources/fpga/docs/hdl
+
+
+udmabuf (User space mappable DMA Buffer) (In Japanese)
+----------------------------------------
+
+http://qiita.com/ikwzm/items/cc1bb33ff43a491440ea
+
+
+Zynq+PyCoRAM(+Debian) Introduction (In Japanese)
+----------------------------------------
+
+http://www.slideshare.net/shtaxxx/zynqpycoram
