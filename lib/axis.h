@@ -9,8 +9,18 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <sys/types.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <time.h>
+#define _GNU_SOURCE
+#include <poll.h>
+
+int ppoll(struct pollfd *fds, nfds_t nfds, 
+        const struct timespec *timeout_ts, const sigset_t *sigmask);
+
+
 
 int fd_axis [NUM_AXIS];
 volatile void* axis_ptr [NUM_AXIS];
@@ -40,12 +50,68 @@ void axis_open()
 void axis_write_4b(unsigned int id, unsigned int offset, unsigned int data)
 {
   *(volatile unsigned int*)(axis_ptr[id] + offset) = data;
+  msync((void*)(axis_ptr[id] + offset), sizeof(unsigned int), MS_SYNC);
 }
 
 void axis_read_4b(unsigned int id, unsigned int offset, unsigned int* data)
 {
   volatile unsigned int r = *(volatile unsigned int*)(axis_ptr[id] + offset);
+  msync((void*)(axis_ptr[id] + offset), sizeof(unsigned int), MS_SYNC);
   *data = r;
+}
+
+void axis_irq_on(unsigned int id){
+  unsigned int irq_on = 1;
+  write(fd_axis[id], &irq_on, sizeof(irq_on));
+}
+
+void axis_irq_off(unsigned int id){
+  unsigned int irq_off = 0;
+  write(fd_axis[id], &irq_off, sizeof(irq_off));
+}
+
+void axis_irq_wait(unsigned int id){
+  struct pollfd   fds[1];
+  struct timespec timeout;
+  sigset_t        sigmask;
+  int             poll_result;
+  unsigned int    irq_count;
+  fds[0].fd       = fd_axis[id];
+  fds[0].events   = POLLIN;
+  timeout.tv_sec  = 5;
+  timeout.tv_nsec = 0;
+  poll_result = ppoll(fds, 1, &timeout, &sigmask);
+  if ((poll_result > 0) && (fds[0].revents & POLLIN)) {
+    read(fd_axis[id], &irq_count,  sizeof(irq_count));
+  }
+  else if(poll_result == -1){
+    printf("uio_irq error\n");
+  }
+  else if(poll_result == 0){
+    printf("uio_irq time out!\n");
+  }
+}
+
+void axis_irq_wait_sec(unsigned int id, unsigned int sec){
+  struct pollfd   fds[1];
+  struct timespec timeout;
+  sigset_t        sigmask;
+  int             poll_result;
+  unsigned int    irq_count;
+  fds[0].fd       = fd_axis[id];
+  fds[0].events   = POLLIN;
+  timeout.tv_sec  = sec;
+  timeout.tv_nsec = 0;
+  poll_result = ppoll(fds, 1, &timeout, &sigmask);
+  if ((poll_result > 0) && (fds[0].revents & POLLIN)) {
+    read(fd_axis[id], &irq_count,  sizeof(irq_count));
+  }
+  else if(poll_result == -1){
+    printf("uio_irq error\n");
+  }
+  else if(poll_result == 0){
+    printf("uio_irq time out!\n");
+  }
 }
 
 void axis_close()
