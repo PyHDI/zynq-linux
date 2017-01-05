@@ -10,7 +10,7 @@ class AXIS(object):
     def __init__(self, uio_prefix='/dev/uio',
                  num_axis=8, axis_size=0x1000):
         self.num_axis = num_axis
-        self._fds = [open(''.join([uio_prefix, str(i)]), 'r+b')
+        self._fds = [open(''.join([uio_prefix, str(i)]), 'r+b', buffering=0)
                      for i in range(self.num_axis)]
         self.axis = [mmap.mmap(f.fileno(), axis_size) for f in self._fds]
 
